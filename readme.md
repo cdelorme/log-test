@@ -36,5 +36,5 @@ It requires a flag with the number of seconds to run.
 
 It keeps track of the number of messages and prints that to stdout at the end.
 
-This can then be compared by running a simple `wc -l *.log`.
+This can then be compared by running a simple `wc -l *.log*`.
 
