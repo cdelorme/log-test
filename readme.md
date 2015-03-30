@@ -85,8 +85,3 @@ Right now we are going with option **2**, but I propose switching to option **1*
 
 Our goal for our pipelines is distributed operations across cloud, handling upwards of 75,000 messages per second.  My goal is to see what the cut-off per-machine might be, and whether any loss of messages is realistic.
 
-
-## results
-
-    TODO
-
