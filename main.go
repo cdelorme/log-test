@@ -41,7 +41,7 @@ func main() {
         case <-after:
                 do = false
         default:
-            logger.Debug("message")
+            logger.Debug("a json blob: %+v", appOptions)
             count = count + 1
         }
     }
