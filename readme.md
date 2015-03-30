@@ -10,6 +10,8 @@ To start, make sure golang is installed.
 
 This test is dependent on linux for logrotate.  Copy the sample `test-logrotate.conf` file to `/etc/logrotate.d/` and adjust the path to the log file.
 
+To run the test you should temporarily add the `logrotate` script (ex. `/etc/cron.daily/logrotate`) to be called every minute via the system crontab.
+
 Grab the golang dependencies with:
 
     go get
@@ -17,15 +19,17 @@ Grab the golang dependencies with:
 You can build the raw executable and run it:
 
     go build
-    log-test -t 30 2> test.log
+    log-test -t 120 2> test.log
 
 Or you can run the software directly:
 
-    go run main.go -t 30 2> test.log
+    go run main.go -t 120 2> test.log
+
+This will take up a sizable amount of space on disk, as it will write to the log file as quickly as possible.  **That is the softwares only purpose.**
 
 _If you run a line-count against all the log files and it is different from the count the software printed, then logrotate lost messages._  At least, in theory.
 
-It probably would make sense to experiment with different cutoff sizes, the default size is very small (300k) and may take less time to copy, therefore reducing the time-slice between copying and emptying the log file.
+The logrotate size configuration value is only considered when logrotate itself is executed via crontab.  Therefore the file may exceed the size limit by a significant amount, unless you force the logrorate operation to occur more regularly.  A more regular interval with smaller sizes may result in less data lost during the copytruncate "time slice", and is worth investigating.
 
 
 ## operation
@@ -41,25 +45,25 @@ This can then be compared by running a simple `wc -l *.log*`.
 
 ## use case
 
-The current project for which this test-code was created has a situation in which we need logrotation to prevent filling up the disks
+A project I am working on has a situation in which we need logrotation to prevent filling up the disks.
 
 Our application uses basic redirection of stdout/stderr, and logrotate will break this stream unless it has `copytruncate`.
 
 We are forwarding our logs to an external collection and indexing tool using rsyslog.
 
-To read data from a file into rsyslog we are using the `imfile` module.
+To read data from our applications log file(s) into rsyslog we are using the `imfile` module.  _Some of the applications are third party tools._
 
 
-**We then face two major concerns:**
+**We encountered major conflicts:**
 
-Unfortunately, the imfile module breaks when copytruncate'd logrotation runs, because it cannot track state.
+The `imfile` module breaks and ceases to forward when logrotate runs with `copytruncate`.  Presumably because it cannot track state anymore.
 
-There is also the fact that logrotate itself claims that a short "time slice" may occur between the copy and truncate operations resulting in a loss of messages.
+The logrotate documentation itself claims that a short "time slice" may occur between the copy and truncate operations which may result in data loss.
 
 
-**Resolutions:**
+**Limited Options:**
 
-The options available to us include:
+We found four possible resolutions around the web for this:
 
 1. temporarily turning off rsyslog for _everything_ in a postrotate operation to restart rsyslog
 
@@ -70,18 +74,16 @@ The options available to us include:
 4. use a separate client application to collect and forward logs
 
 
-Why these all fail to meet our needs:
+None of these truly meet our needs, and here is why:
 
-4. fails in the same way as imfile, logrotate breaks the state of any forwarding applications
+1. Stopping rsyslog means temporarily loosing any logs going through syslog itself.
 
-3. we cannot control third-party dependencies which also rely on basic redirection for output
+2. named pipes add additional points of failure and complexity to what should otherwise be simple output handling.
 
-2. creates multiple new points of failure in logging for every application using it
+3. We cannot change all the applications we depend on which also do not directly use syslog.
 
-1. probably not ideal, but _this is the solution supplied on support sites_
+4. A third party client very likely suffers from the same conflicts as imfile does with logrotation, and we'd rather use the onboard tools (for not).
 
 
-Right now we are going with option **2**, but I propose switching to option **1**.  This code is a test-case to validate the potential loss of messages from logrotate in a totally theoretical (and unlikely) scenario where the _only_ task of this application is to log messages as quickly as possible.
-
-Our goal for our pipelines is distributed operations across cloud, handling upwards of 75,000 messages per second.  My goal is to see what the cut-off per-machine might be, and whether any loss of messages is realistic.
+We are going with the first option for now, and this project is intended to either proove or disprove whether or not the time-slice loss is a real concern.
 
