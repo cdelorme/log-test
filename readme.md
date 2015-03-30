@@ -38,3 +38,55 @@ It keeps track of the number of messages and prints that to stdout at the end.
 
 This can then be compared by running a simple `wc -l *.log*`.
 
+
+## use case
+
+The current project for which this test-code was created has a situation in which we need logrotation to prevent filling up the disks
+
+Our application uses basic redirection of stdout/stderr, and logrotate will break this stream unless it has `copytruncate`.
+
+We are forwarding our logs to an external collection and indexing tool using rsyslog.
+
+To read data from a file into rsyslog we are using the `imfile` module.
+
+
+**We then face two major concerns:**
+
+Unfortunately, the imfile module breaks when copytruncate'd logrotation runs, because it cannot track state.
+
+There is also the fact that logrotate itself claims that a short "time slice" may occur between the copy and truncate operations resulting in a loss of messages.
+
+
+**Resolutions:**
+
+The options available to us include:
+
+1. temporarily turning off rsyslog for _everything_ in a postrotate operation to restart rsyslog
+
+2. use named pipes to redirect output to a temporary stream which we can control from a small script
+
+3. change our applications to write to syslog directly, or to our external collector
+
+4. use a separate client application to collect and forward logs
+
+
+Why these all fail to meet our needs:
+
+4. fails in the same way as imfile, logrotate breaks the state of any forwarding applications
+
+3. we cannot control third-party dependencies which also rely on basic redirection for output
+
+2. creates multiple new points of failure in logging for every application using it
+
+1. probably not ideal, but _this is the solution supplied on support sites_
+
+
+Right now we are going with option **2**, but I propose switching to option **1**.  This code is a test-case to validate the potential loss of messages from logrotate in a totally theoretical (and unlikely) scenario where the _only_ task of this application is to log messages as quickly as possible.
+
+Our goal for our pipelines is distributed operations across cloud, handling upwards of 75,000 messages per second.  My goal is to see what the cut-off per-machine might be, and whether any loss of messages is realistic.
+
+
+## results
+
+    TODO
+
